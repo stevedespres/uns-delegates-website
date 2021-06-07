@@ -1,4 +1,5 @@
 const { slugify: vuePressSlugify, path } = require("@vuepress/shared-utils");
+const axios = require("axios");
 
 function customSlugifyToHandleBadges(str) {
   // Remove badges
@@ -45,14 +46,19 @@ module.exports = {
         siteId: 18,
       },
     ],
+    [require("./my-plugin")],
     [
       "seo",
       {
         // your options
-        author: (_, $site) => {
+        author: ($page, $site) => {
+          // delegate twitter account or by default @Uns_Network
+          const twitter = $page.frontmatter.twitter
+            ? `@${$page.frontmatter.twitter}`
+            : "@Uns_Network";
           return {
             name: $site.themeConfig.author,
-            twitter: "@Uns_Network",
+            twitter: twitter,
           };
         },
         image: ($page, $site) =>
@@ -61,7 +67,6 @@ module.exports = {
           ($page.frontmatter.image || "opengraph-v1.png"),
       },
     ],
-    [require("./my-plugin")],
   ],
   head: [
     ["link", { rel: "icon", href: "/logo.png" }],

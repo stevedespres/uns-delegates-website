@@ -1,9 +1,22 @@
 const axios = require("axios");
 
-module.exports = (options, context) => {
+module.exports = (options = {}, context) => {
   const pages = [];
+  const unikidsPagesCompleted = [];
   let uniks = [];
   let delegates = [];
+
+  // https://github.com/lorisleiva/vuepress-plugin-seo/blob/main/index.js
+  function getAddMeta(meta) {
+    return (name, content, attribute = null) => {
+      if (!content) return;
+      if (!attribute)
+        attribute = ["article:", "og:"].some((type) => name.startsWith(type))
+          ? "property"
+          : "name";
+      meta.push({ [attribute]: name, content });
+    };
+  }
 
   return {
     extendPageData($page) {
@@ -28,6 +41,10 @@ module.exports = (options, context) => {
     },
 
     async additionalPages() {
+      // copy the unikid of delegates who have completed their profiles
+      pages.forEach((page) =>
+        unikidsPagesCompleted.push(page.regularPath.split("/")[2])
+      );
       delegates = await axios
         .get("https://api.uns.network/api/v2/delegates")
         .then((res) => res.data.data);
@@ -63,11 +80,10 @@ module.exports = (options, context) => {
       const { siteConfig } = context;
       if (!siteConfig.head) siteConfig.head = [];
       pages.forEach((page) => {
-        const unik = uniks.find(
-          (unik) => unik.id === page.regularPath.split("/")[2]
-        );
+        const currentUnikid = page.regularPath.split("/")[2];
+        const unik = uniks.find((unik) => unik.id === currentUnikid);
         const delegate = delegates.find(
-          (delegate) => delegate.username === page.regularPath.split("/")[2]
+          (delegate) => delegate.username === currentUnikid
         );
 
         // Allow to generate pages for delegate without contribution
@@ -75,17 +91,30 @@ module.exports = (options, context) => {
           page.frontmatter = {};
         }
 
-        if (page.frontmatter.unikid) {
+        if (unikidsPagesCompleted.includes(currentUnikid)) {
           page.frontmatter.notCompleted = false;
+          page.frontmatter.unikid = currentUnikid;
         } else {
           page.frontmatter.notCompleted = true;
-          page.frontmatter.unikid = page.regularPath.split("/")[2];
+          page.frontmatter.unikid = currentUnikid;
         }
-
         page.frontmatter.ownerId = unik.ownerId;
+        page.title = `@${unik.defaultExplicitValue}'s delegate profile`;
         page.frontmatter.unikname = unik.defaultExplicitValue;
         page.frontmatter.type = delegate.type;
         page.frontmatter.forger = delegate.rank < 24 ? true : false;
+
+        // update SEO meta
+        page.frontmatter.meta.forEach((meta) => {
+          if (meta.property === "og:title") {
+            meta.content = page.title;
+          } else if (
+            meta.name === "twitter:data1" ||
+            meta.name === "twitter:title"
+          ) {
+            meta.content = page.title;
+          }
+        });
 
         if (page.regularPath.includes("embedded")) {
           page.frontmatter.layout = "DelegateLayout";
